@@ -6,4 +6,5 @@ using System;
 public class DependenciesManager : MonoBehaviour
 {
     Dictionary dependacncies = new Dictionary<string, MonoBehaviour>();
+    //i like traains 
 }
