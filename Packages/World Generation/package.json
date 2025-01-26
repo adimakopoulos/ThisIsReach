@@ -1,0 +1,22 @@
+{
+  "name": "com.alex.world.generation",
+  "displayName": "Alex World Generation - Test Package",
+  "version": "0.0.1",
+  "unity": "2022.3",
+  "description": "Simple world generation Package",
+  "keywords": [
+    "keyword1",
+    "keyword2",
+    "keyword3"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "Alex dim",
+    "email": "alex@dim.com"
+  },
+  "bugs": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adimakopoulos/unity-movement-tool.git"
+  }
+}
