@@ -9,15 +9,17 @@ namespace SimpleMovementNS
 {
     public class NavCellNode 
     {
-        public int gCost;
-        public int hCost;
-        public int fCost;
-        public Vector3Int position;
+
+        public float gCost;//how far is from starting node
+        public float hCost;//how far is from the end node
+        public float fCost;// g + h cost , we want the lowest number. lowest G is closer to Start lowest G is closest to ending
+        public Vector3 position;
         public NavCellNode cameFromNavCellNode;
         public int size =1;
         public List<NavCellNode> neighbourList = new List<NavCellNode>();
+        public bool isWalkable = true;
 
-        public NavCellNode(Vector3Int position)
+        public NavCellNode(Vector3 position)
         {
             this.position = position;
         }
@@ -41,7 +43,7 @@ namespace SimpleMovementNS
             {
                 return false;
             }
-            if (obj1.position.x == obj2.position.x && obj1.position.y == obj2.position.y) { return true; }
+            if (obj1.position.x == obj2.position.x && obj1.position.z == obj2.position.z) { return true; }
                 
             return false;
         }

@@ -39,4 +39,23 @@ public class PathingTest
         Assert.That(searchingForFood != null);
         yield return null;
     }
+
+    // A UnityTest behaves like a coroutine in Play Mode. In Edit Mode you can use
+    // `yield return null;` to skip a frame.
+    [UnityTest]
+    public IEnumerator CreateGrid()
+    {
+        GameObject managers = new GameObject();
+        managers.name = "managers";
+        managers.transform.position = new Vector3(0, 0, 0);
+        GlobalPathingService globalPathingService = managers.AddComponent<GlobalPathingService>();
+        globalPathingService.width = 2;
+        globalPathingService.height = 2;
+        globalPathingService.scaleOfNavigationGrid = 0.5f;
+        Assert.DoesNotThrow(() => {
+            globalPathingService.CreateGrid();
+        });
+        yield return null;
+
+    }
 }
