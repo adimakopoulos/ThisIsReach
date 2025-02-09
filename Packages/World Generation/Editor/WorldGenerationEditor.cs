@@ -41,6 +41,10 @@ namespace SimpleWorldGenerationNS
             {
                 worldGenerationManager.DeleteTiles();
             }
+            if (GUILayout.Button("Reset Tile Positions"))
+            {
+                worldGenerationManager.ResetTilePositions();
+            }
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Tile Painting", EditorStyles.boldLabel);
