@@ -1,21 +1,24 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class PlayerData 
+[Serializable]
+public class PlayerData
 {
-    string name;
-    public int id;
-    bool isControlledByHuman;
 
-    //resources
-    int gold;
-    int lumber;
-    int coal;
-    int food;
-    
-    int stone;
-    int iron;
-    int copper;
+    public string playerName;
+    public int id;
+    public bool isControlledByHuman;
+
+    // Resources
+    public int gold;
+    public int lumber;
+    public int coal;
+    public int food;
+
+    public int stone;
+    public int iron;
+    public int copper;
 
 }

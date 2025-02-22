@@ -8,27 +8,25 @@ using UnityEngine.TextCore.Text;
 
 public class PathingTest
 {
-
-
-    // A UnityTest behaves like a coroutine in Play Mode. In Edit Mode you can use
-    // `yield return null;` to skip a frame.
     [UnityTest]
     public IEnumerator PathingTestWithEnumeratorPasses()
     {
         GameObject managers = new GameObject();
         managers.name = "managers";
-        managers.transform.position = new Vector3(0,0,0);
-        managers.AddComponent<GlobalPathingService>();
-        managers.GetComponent<GlobalPathingService>().width = 10;
-        managers.GetComponent<GlobalPathingService>().height = 10;
-        managers.GetComponent<GlobalPathingService>().CreateGrid();
+        managers.transform.position = new Vector3(0, 0, 0);
+        GlobalPathingService globalPathingService = managers.AddComponent<GlobalPathingService>();
+        globalPathingService.width = 10;
+        globalPathingService.height = 10;
+        globalPathingService.scaleOfNavigationGrid = 1;
+
+        globalPathingService.CreateGrid();
 
 
         //GameObject searchingForFood = Resources.Load("Person") as GameObject;
         GameObject prefab = Resources.Load<GameObject>("Person");
         GameObject searchingForFood = GameObject.Instantiate(prefab, Vector3.zero, Quaternion.identity);
         searchingForFood.name = "searchingForFood";
-        searchingForFood.transform.position = new Vector3(0.2f,0,1.2f);
+        searchingForFood.transform.position = new Vector3(0, 0, 0);
 
         //then
         List<NavCellNode> path = managers.GetComponent<GlobalPathingService>().FindPath(searchingForFood.transform.position, new Vector3(9, 0, 1));
@@ -40,8 +38,6 @@ public class PathingTest
         yield return null;
     }
 
-    // A UnityTest behaves like a coroutine in Play Mode. In Edit Mode you can use
-    // `yield return null;` to skip a frame.
     [UnityTest]
     public IEnumerator CreateGrid()
     {
@@ -52,10 +48,38 @@ public class PathingTest
         globalPathingService.width = 2;
         globalPathingService.height = 2;
         globalPathingService.scaleOfNavigationGrid = 0.5f;
-        Assert.DoesNotThrow(() => {
+        Assert.DoesNotThrow(() =>
+        {
             globalPathingService.CreateGrid();
+            globalPathingService.DeleteGrid();
         });
         yield return null;
 
     }
+
+
+    [UnityTest]
+    public IEnumerator CreateGridWithOffset()
+    {
+        GameObject managers = new GameObject();
+        managers.name = "managers";
+        managers.transform.position = new Vector3(1.1f, 0, 1.1f);
+        GlobalPathingService globalPathingService = managers.AddComponent<GlobalPathingService>();
+        globalPathingService.width = 10;
+        globalPathingService.height = 10;
+        globalPathingService.scaleOfNavigationGrid = 0.1f;
+        Assert.DoesNotThrow(() =>
+        {
+            globalPathingService.CreateGrid();
+            globalPathingService.DeleteGrid();
+        });
+
+        yield return null;
+
+    }
+
+
+
 }
+
+

@@ -343,11 +343,11 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 2261071371274501207, guid: 0a9fcd4628d40524ba456ea6b58e22fa, type: 3}
       propertyPath: X
-      value: 1
+      value: 45
       objectReference: {fileID: 0}
     - target: {fileID: 2261071371274501207, guid: 0a9fcd4628d40524ba456ea6b58e22fa, type: 3}
       propertyPath: Y
-      value: 6
+      value: 45
       objectReference: {fileID: 0}
     - target: {fileID: 2261071371274501207, guid: 0a9fcd4628d40524ba456ea6b58e22fa, type: 3}
       propertyPath: m_Enabled
@@ -355,7 +355,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2261071371274501207, guid: 0a9fcd4628d40524ba456ea6b58e22fa, type: 3}
       propertyPath: widthOfTile
-      value: 10
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6123018289862391392, guid: 0a9fcd4628d40524ba456ea6b58e22fa, type: 3}
       propertyPath: m_LocalPosition.x

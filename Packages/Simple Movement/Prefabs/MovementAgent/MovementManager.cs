@@ -8,27 +8,15 @@ namespace SimpleMovementNS
 {
     public class MovementManager : MonoBehaviour
     {
-        //[SerializeField]
-        //public PersonDependenciesManager dependenciesManager;
+
         List<NavCellNode> path;
         int currentNode = 0;
         Vector3 targetlocation;
-        // Start is called before the first frame update
         void Start()
         {
         
         }
 
-        //private void OnEnable()
-        //{
-        //    dependenciesManager.aIManager.onNewDestinationSet += findFood;
-        //}
-        //private void OnDisable()
-        //{
-        //    dependenciesManager.aIManager.onNewDestinationSet -= findFood;
-
-        //}
-        // Update is called once per frame
         void Update()
         {
             setMovementTargetWhenRightClick();
@@ -44,7 +32,6 @@ namespace SimpleMovementNS
                 }
                 if (gameObject.transform.position == path[currentNode].position)
                 {
-
                     currentNode++;
                 }
 
@@ -69,21 +56,19 @@ namespace SimpleMovementNS
                     Vector3 hitPoint = ray.GetPoint(distance);
                     hitPoint.y = 0;
                     Debug.Log("Clicked position on plane: " + hitPoint);
-                    findFood(hitPoint);
+                    ResolvePath(hitPoint);
                 }
             }
         }
 
-        public void findFood(Vector3 endPos)
+        public void ResolvePath(Vector3 endPos)
         {
             currentNode = 0;
             path = GlobalPathingService.instance.FindPath(gameObject.transform.position, endPos);
-            Debug.Log(path);
         }  
         public void followPath(List<NavCellNode> path)
         {
             this.path = path;
-            Debug.Log(path);
         }
     }
 }
