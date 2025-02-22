@@ -1,9 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace SimpleWorldGenerationNS
 {
+    [RequireComponent(typeof(ShowGridManager))]
     public class WorldGenerationsManager : MonoBehaviour
     {
         [Range(1, 50)]
@@ -11,11 +13,30 @@ namespace SimpleWorldGenerationNS
         [Range(1, 100)]
         public int widthOfTile=1;
         public GameObject TilePrefab;
-
+        public static WorldGenerationsManager instance;
+        public static Dictionary<Vector3, TileData> worldMatrix = new Dictionary<Vector3, TileData>();
         // Start is called before the first frame update
-        void Start()//
+        void Start()
         {
+            setSingleton();
+            setTileMap();
+        }
 
+        private void setTileMap()
+        {
+            for (int x = 0; x < X; x++)
+            {
+                for (int y = 0; y < Y; y++)
+                {
+                    Vector3 position = new Vector3(x * widthOfTile, 0, y * widthOfTile);
+                    worldMatrix.Add(position, new TileData());
+                }
+            }
+        }
+
+        private void setSingleton()
+        {
+            instance = this;
         }
 
         // Update is called once per frame
@@ -23,6 +44,8 @@ namespace SimpleWorldGenerationNS
         {
 
         }
+
+        public WorldGenerationsManager getInstance() { return instance; }
 
         public void Generate()
         {
