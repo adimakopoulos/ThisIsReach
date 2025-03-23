@@ -2,55 +2,192 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using static UnityEditor.PlayerSettings;
+using UnityEngine.Tilemaps;
 
 namespace SimpleMovementNS
 {
     public class GlobalPathingService : MonoBehaviour
     {
+        // Pathfinding constants
+        private const int MOVE_STRAIGHT_COST = 10;
+        private const int MOVE_DIAGONAL_COST = 14;
 
-        const int MOVE_STRAIGHT_COST = 10;
-        const int MOVE_DIAGONAL_COST = 14;
 
-        private static Dictionary<Vector3, NavCellNode> navCells = new Dictionary<Vector3, NavCellNode>();
+        // Grid properties
+        private static Dictionary<GridPosition, NavCellNode> navCells = new Dictionary<GridPosition, NavCellNode>();
+        private static Dictionary<Vector3Int, List<NavCellNode>> navCellsPerTile = new Dictionary<Vector3Int, List<NavCellNode>>();
         private List<NavCellNode> openList = new List<NavCellNode>();
         private List<NavCellNode> closedList = new List<NavCellNode>();
-        public List<NavCellNode> neighboringCells = new List<NavCellNode>();
-        public int width=1, height=1;
-        public float scaleOfNavigationGrid = 1f;
+
+        public int width = 10;
+        public int height = 10;
+        public float navCellDistance = 0.2f; 
         public static GlobalPathingService instance;
         public bool autoGenerateGridOnEnable = false;
         public bool leftClickToBlockNavCell = false;
-        // Start is called before the first frame update
-        void Start()
+
+        public bool createVisualNode = false;
+        private List<GameObject> visualNodes = new List<GameObject>();
+        // Initialization
+        private void Awake()
+        {
+            if (instance == null)
+            {
+                instance = this;
+            }
+            else if (instance != this)
+            {
+                Debug.Log("Duplicate of "+this.name+"Instance was found and deleteted");
+                Destroy(gameObject);
+            }
+        }
+
+        private void Start()
         {
             instance = this;
         }
-        
+
         private void OnEnable()
         {
-            if (autoGenerateGridOnEnable) {
-                createGrid();
+            if (autoGenerateGridOnEnable)
+            {
+                CreateGrid();
             }
         }
+
         private void OnDisable()
         {
-            deleteGrid();
+            DeleteGrid();
         }
 
-        // Update is called once per frame
-        void Update()
+        private void Update()
         {
-            leftClickToblockNavcell();
-
+            LeftClickToBlockNavCell();
         }
+
+        // Grid creation and management
+        public void CreateGrid()
+        {
+            navCells.Clear();
+            for (int x = 0; x < width; x++)
+            {
+                for (int z = 0; z < height; z++)
+                {
+                    GridPosition gridPosition = new GridPosition(x, z);
+                    Vector3 worldPosition = GridToWorldPosition(gridPosition);
+                    NavCellNode cellData = new NavCellNode(gridPosition, worldPosition);
+                    navCells.Add(gridPosition, cellData);
+
+                    if (createVisualNode) {
+                        GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                        cube.transform.position = worldPosition;
+                        cube.transform.localScale = new Vector3(navCellDistance, 0.05f, navCellDistance);
+                        cube.transform.SetParent(this.gameObject.transform);
+                        visualNodes.Add(cube);
+                    }
+
+
+                }
+            }
+
+            navCellsPerTile.Clear();
+            foreach (NavCellNode navCellNode in navCells.Values) {
+                Vector3Int flooredNavCellPosition = new Vector3Int(Mathf.FloorToInt(navCellNode.worldPosition.x), 0, Mathf.FloorToInt(navCellNode.worldPosition.z));
+                if (navCellsPerTile.ContainsKey(flooredNavCellPosition))
+                {
+                    navCellsPerTile[flooredNavCellPosition].Add(navCellNode);
+                }
+                else {
+                    List<NavCellNode> list = new List<NavCellNode>() { navCellNode };
+                    navCellsPerTile.Add(flooredNavCellPosition, list);
+                }
+
+            }
+
+            SetNeighboringListForEveryCell();
+            Debug.Log($"Created grid with {navCells.Count} cells");
+        }
+
+        public void DeleteGrid()
+        {
+            navCells.Clear();
+            foreach (GameObject cube in visualNodes)
+            {
+                if (Application.isEditor) {
+                    DestroyImmediate(cube);
+                }
+                else if(Application.isPlaying)
+                {
+                    Destroy(cube);
+                }
+            }
+            visualNodes.Clear();
+            Debug.Log("Navigation grid deleted");
+        }
+
+        // Position conversion methods
+        public Vector3 GridToWorldPosition(GridPosition gridPosition)
+        {
+            return new Vector3(
+                gridPosition.x * navCellDistance + transform.position.x,
+                0,
+                gridPosition.z * navCellDistance + transform.position.z
+            );
+        }
+
+        public GridPosition WorldToGridPosition(Vector3 worldPosition)
+        {
+            // Calculate raw grid position without rounding
+            float rawX = (worldPosition.x - transform.position.x) / navCellDistance;
+            float rawZ = (worldPosition.z - transform.position.z) / navCellDistance;
+
+            // Round to nearest grid position
+            int x = Mathf.RoundToInt(rawX);
+            int z = Mathf.RoundToInt(rawZ);
+
+
+            return new GridPosition(x, z);
+        }
+
+        // Node retrieval methods
+        public NavCellNode GetNodeAtGridPosition(GridPosition gridPosition)
+        {
+            if (navCells.TryGetValue(gridPosition, out NavCellNode node))
+            {
+                return node;
+            }
+            return null;
+        }
+
+        public NavCellNode GetNodeAtWorldPosition(Vector3 worldPosition)
+        {
+            GridPosition gridPosition = WorldToGridPosition(worldPosition);
+            return GetNodeAtGridPosition(gridPosition);
+        }
+
+        // Finds nearest navigation cell to any world position
         public static Vector3 GetClosestNavCellPos(Vector3 worldPosition)
         {
-            NavCellNode closestCell = null;
-            float shortestDistance = Mathf.Infinity;
+            if (instance == null || navCells.Count == 0)
+            {
+                Debug.LogWarning("Navigation system not initialized or no cells created");
+                return worldPosition;
+            }
 
+            GridPosition gridPosition = instance.WorldToGridPosition(worldPosition);
+            NavCellNode closestCell = instance.GetNodeAtGridPosition(gridPosition);
+
+            if (closestCell != null)
+            {
+                return closestCell.worldPosition;
+            }
+
+            // If not in grid, find the closest valid cell
+            float shortestDistance = float.MaxValue;
             foreach (var cell in navCells.Values)
             {
-                float distance = Vector3.Distance(worldPosition, cell.position);
+                float distance = Vector3.Distance(worldPosition, cell.worldPosition);
                 if (distance < shortestDistance)
                 {
                     shortestDistance = distance;
@@ -61,156 +198,129 @@ namespace SimpleMovementNS
             if (closestCell == null)
             {
                 Debug.LogWarning("No navigation cells found.");
+                return worldPosition;
             }
 
-            return closestCell.position;
+            return closestCell.worldPosition;
         }
-        private void leftClickToblockNavcell()
-        {
-            if (Input.GetMouseButtonDown(0))
-            {
-                if (!leftClickToBlockNavCell)
-                {
-                    return;
-                }
-                Plane groundPlane = new Plane(Vector3.up, Vector3.zero);
-                // Create a ray from the main camera to the mouse position
-                Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-                float distance;
 
-                // Check if the ray intersects the plane
-                if (groundPlane.Raycast(ray, out distance))
+        // Grid validation
+        private bool IsValidGridPosition(GridPosition gridPosition)
+        {
+            return gridPosition.x >= 0 && gridPosition.x < width &&
+                   gridPosition.z >= 0 && gridPosition.z < height &&
+                   navCells.ContainsKey(gridPosition);
+        }
+
+        // Set up neighbors for all cells
+        private void SetNeighboringListForEveryCell()
+        {
+            foreach (var cellPair in navCells)
+            {
+                List<NavCellNode> neighbourList = new List<NavCellNode>();
+                GridPosition gridPos = cellPair.Key;
+
+                // Check all 8 neighboring directions
+                for (int xOffset = -1; xOffset <= 1; xOffset++)
                 {
-                    // Calculate the exact hit point
+                    for (int zOffset = -1; zOffset <= 1; zOffset++)
+                    {
+                        // Skip the current cell
+                        if (xOffset == 0 && zOffset == 0) continue;
+
+                        GridPosition neighborPos = new GridPosition(gridPos.x + xOffset, gridPos.z + zOffset);
+
+                        // Check if this neighbor is within grid bounds
+                        if (IsValidGridPosition(neighborPos))
+                        {
+                            // Add to neighbor list
+                            neighbourList.Add(navCells[neighborPos]);
+                        }
+                    }
+                }
+
+                // Assign the neighbors to the cell
+                cellPair.Value.neighbourList = neighbourList;
+            }
+        }
+
+        // Cell manipulation methods
+        public bool CanBuildOnTile(Vector3 worldPosition)
+        {
+
+            var cellList = navCellsPerTile[new Vector3Int(Mathf.FloorToInt(worldPosition.x), 0, Mathf.FloorToInt(worldPosition.z))];
+            foreach (var cell in cellList)
+            {
+                if (!cell.isWalkable) return false;
+            }
+            return true;
+        }
+
+        private void LeftClickToBlockNavCell()
+        {
+            if (Input.GetMouseButtonDown(0) && leftClickToBlockNavCell)
+            {
+                Plane groundPlane = new Plane(Vector3.up, Vector3.zero);
+                Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+
+                if (groundPlane.Raycast(ray, out float distance))
+                {
                     Vector3 hitPoint = ray.GetPoint(distance);
                     hitPoint.y = 0;
                     Debug.Log("Clicked position on plane: " + hitPoint);
-                    GlobalPathingService.instance.BlockNavCell(hitPoint);
+                    BlockNavCell(hitPoint);
                 }
             }
         }
 
-        public bool CanBuildOnTile(Vector3 tilePos3)
+        public Vector3 BlockNavCell(Vector3 worldPosition)
         {
-            // Filter navCells by matching x and z coordinates
-            var matchingCells = navCells.Where(kvp => Mathf.FloorToInt(kvp.Key.x) == tilePos3.x && Mathf.FloorToInt(kvp.Key.z) == tilePos3.z);
-
-            // Check if there are any non-walkable cells among them or no cells at all
-            return !matchingCells.Any() || matchingCells.All(cell => cell.Value.isWalkable);
-        }
-        public bool CanBuildOnNavCell(Vector3 tilePos3)
-        {
-            // Filter navCells by matching x and z coordinates
-            NavCellNode cell = WorldToGridPosition(tilePos3);
-            if (cell != null && cell.isWalkable)
-            {
-                return true;
-            }
-            else {
-                return false;
-            }
-        }
-        /// <summary>
-        /// It floors the number to int and it will find all NavCells that start with
-        /// that number and block them 
-        /// 
-        /// </summary>
-        /// <param name="tilePos3"></param>
-        public void BlockAllNavCellsOnTile(Vector3 tilePos3)
-        {
-            // Filter navCells by matching x and z coordinates
-            var matchingCells = navCells.Where(kvp => Mathf.FloorToInt(kvp.Key.x) == tilePos3.x && Mathf.FloorToInt(kvp.Key.z) == tilePos3.z);
-
-            // Check if there are any cells to block
-            if (!matchingCells.Any()) {
-                Debug.Log(" No cells found");
-            }
-
-            foreach (var cell in matchingCells) { 
-                cell.Value.isWalkable = false;
-                Debug.Log(" Block all matching cells by setting isWalkable to false finshed");
-            }
-
-        }
-
-        public void CreateGrid() {
-            createGrid();
-        }      
-        
-        public void DeleteGrid() {
-            deleteGrid();
-        }
-        /// <summary>
-        /// Transform the world position to the Closest NavCell
-        /// Then Set the isWalkable bool to false
-        /// </summary>
-        /// <param name="cellPosition"></param>
-        public void BlockNavCell(Vector3 cellPosition)
-        {
-            // Convert Vector3Int to Vector3 since our dictionary keys are Vector3.
-            NavCellNode cell = WorldToGridPosition(cellPosition);
+            NavCellNode cell = GetNodeAtWorldPosition(worldPosition);
             if (cell != null)
             {
                 cell.isWalkable = false;
-                GameObject a = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                a.transform.position = new Vector3(cell.position.x, 0, cell.position.z);
-                a.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
-                Debug.Log("Nav cell blocked at: " + cellPosition);
+                GameObject marker = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                marker.transform.position = cell.worldPosition + Vector3.up * 0.1f;
+                marker.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
+                marker.name = "NavBlock_" + cell.gridPosition.ToString();
+                Debug.Log($"Nav cell blocked at grid position: {cell.gridPosition}");
+                return cell.worldPosition;  
             }
             else
             {
-                Debug.LogWarning("No nav cell found at: " + cellPosition);
+                Debug.LogWarning("No nav cell found at: " + worldPosition);
+                return Vector3.zero;
             }
         }
-        public List<NavCellNode> FindPath(Vector3 start, Vector3 end)
+
+        public void UnblockNavCell(Vector3 worldPosition)
         {
-
-            //--init
-            NavCellNode startCell = WorldToGridPosition(start);
-            NavCellNode endCell = WorldToGridPosition(end);
-            if (!endCell.isWalkable)
-            {
-                return null;
-            }
-
-            openList = new List<NavCellNode>
-            {
-                startCell
-            };
-            closedList = new List<NavCellNode>();
-
-            clearPreviousPathsAndCosts();
-            initializeCostForFistCell(startCell, endCell);
-
-            while (openList.Count > 0)
-            {
-                NavCellNode currCellNode = getLowestFcostNode(openList);
-                if (currCellNode == endCell)
-                {
-                    return calculatePath(endCell);
-                }
-
-                openList.Remove(currCellNode);
-                closedList.Add(currCellNode);
-                cycleThroughAllNeigboringTiles(endCell, currCellNode);
-            }
-    
-            //no path
-            return null;
-        }
-        /// <summary>
-        /// Finds the closest NavCell and then it set isWalkable to fasle for the navCell and all "touching" Cells
-        /// </summary>
-        /// <param name="cellPosition"></param>
-        public void BlockNavCellAndNeighbors(Vector3 cellPosition)
-        {
-            NavCellNode cell = WorldToGridPosition(cellPosition);
+            NavCellNode cell = GetNodeAtWorldPosition(worldPosition);
             if (cell != null)
             {
-                // Block the selected cell
+                cell.isWalkable = true;
+                Debug.Log($"Nav cell unblocked at grid position: {cell.gridPosition}");
+
+                // Remove visual debug markers
+                GameObject marker = GameObject.Find("NavBlock_" + cell.gridPosition.ToString());
+                if (marker != null)
+                {
+                    DestroyImmediate(marker);
+                }
+            }
+            else
+            {
+                Debug.LogWarning("No nav cell found at: " + worldPosition);
+            }
+        }
+
+        public void BlockNavCellAndNeighbors(Vector3 worldPosition)
+        {
+            NavCellNode cell = GetNodeAtWorldPosition(worldPosition);
+            if (cell != null)
+            {
                 cell.isWalkable = false;
 
-                // Block all neighboring cells
                 foreach (NavCellNode neighbor in cell.neighbourList)
                 {
                     if (neighbor != null)
@@ -219,22 +329,21 @@ namespace SimpleMovementNS
                     }
                 }
 
-                Debug.Log("Blocked nav cell and neighbors at: " + cellPosition);
+                Debug.Log($"Blocked nav cell and neighbors at grid position: {cell.gridPosition}");
             }
             else
             {
-                Debug.LogWarning("No nav cell found at: " + cellPosition);
+                Debug.LogWarning("No nav cell found at: " + worldPosition);
             }
         }
-        public void UnblockNavCellAndNeighbors(Vector3 cellPosition)
+
+        public void UnblockNavCellAndNeighbors(Vector3 worldPosition)
         {
-            NavCellNode cell = WorldToGridPosition(cellPosition);
+            NavCellNode cell = GetNodeAtWorldPosition(worldPosition);
             if (cell != null)
             {
-                // Unblock the selected cell
                 cell.isWalkable = true;
 
-                // Unblock all neighboring cells
                 foreach (NavCellNode neighbor in cell.neighbourList)
                 {
                     if (neighbor != null)
@@ -243,256 +352,214 @@ namespace SimpleMovementNS
                     }
                 }
 
-                Debug.Log("Unblocked nav cell and neighbors at: " + cellPosition);
+                Debug.Log($"Unblocked nav cell and neighbors at grid position: {cell.gridPosition}");
             }
             else
             {
-                Debug.LogWarning("No nav cell found at: " + cellPosition);
+                Debug.LogWarning("No nav cell found at: " + worldPosition);
             }
         }
-        private void cycleThroughAllNeigboringTiles(NavCellNode endCell, NavCellNode currCellNode)
-        {
-            foreach (var nCell in currCellNode.neighbourList)
-            {
-                if (!nCell.isWalkable)
-                {
-                    closedList.Add(nCell);
-                    continue;
-                }
-                if (closedList.Contains(nCell))
-                {
-                    continue;
-                }
-                float tentativeGCost = currCellNode.gCost + calculateDistance(currCellNode, nCell);
-                if (tentativeGCost < nCell.gCost)
-                {
-                    nCell.cameFromNavCellNode = currCellNode;
-                    nCell.gCost = tentativeGCost;
-                    nCell.hCost = calculateDistance(nCell, endCell);
-                    nCell.CalculateFCost();
 
-                    if (!openList.Contains(nCell))
+        public void BlockAllNavCellsOnTile(Vector3 worldPosition)
+        {
+            GridPosition gridPosition = WorldToGridPosition(worldPosition);
+            if (IsValidGridPosition(gridPosition))
+            {
+                var  cellList = navCellsPerTile[new Vector3Int(Mathf.FloorToInt (worldPosition.x),0,Mathf.FloorToInt (worldPosition.z))];
+                foreach (var cell in cellList) { 
+                    cell.isWalkable = false;
+                }
+                Debug.Log($"Blocked nav cell at grid position: {gridPosition}");
+            }
+            else
+            {
+                Debug.LogWarning($"No valid grid position found at: {worldPosition}");
+            }
+        }
+
+        public void UnBlockAllNavCellsOnTile(Vector3 worldPosition)
+        {
+            GridPosition gridPosition = WorldToGridPosition(worldPosition);
+            if (IsValidGridPosition(gridPosition))
+            {
+                var cellList = navCellsPerTile[new Vector3Int(Mathf.FloorToInt(worldPosition.x), 0, Mathf.FloorToInt(worldPosition.z))];
+                foreach (var cell in cellList)
+                {
+                    cell.isWalkable = false;
+                }
+                Debug.Log($"Unblocked nav cell at grid position: {gridPosition}");
+            }
+            else
+            {
+                Debug.LogWarning($"No valid grid position found at: {worldPosition}");
+            }
+        }
+
+        // Pathfinding implementation
+        public List<NavCellNode> FindPath(Vector3 startWorldPos, Vector3 endWorldPos)
+        {
+            startWorldPos.y = 0;
+            endWorldPos.y = 0;
+            NavCellNode startCell = GetNodeAtWorldPosition(startWorldPos);
+            NavCellNode endCell = GetNodeAtWorldPosition(endWorldPos);
+
+            if (startCell == null || endCell == null)
+            {
+                Debug.LogWarning("Start or end position is outside the navigation grid");
+                return null;
+            }
+
+            if (!endCell.isWalkable)
+            {
+                Debug.LogWarning("End position is not walkable");
+                return null;
+            }
+
+            // Initialize pathfinding
+            openList = new List<NavCellNode> { startCell };
+            closedList = new List<NavCellNode>();
+
+            // Clear previous path data
+            foreach (var cell in navCells.Values)
+            {
+                cell.gCost = float.MaxValue;
+                cell.CalculateFCost();
+                cell.cameFromNavCellNode = null;
+            }
+
+            // Set initial costs
+            startCell.gCost = 0;
+            startCell.hCost = CalculateDistance(startCell, endCell);
+            startCell.CalculateFCost();
+
+            // Main A* loop
+            while (openList.Count > 0)
+            {
+                NavCellNode currentNode = GetLowestFCostNode(openList);
+
+                if (currentNode == endCell)
+                {
+                    return CalculatePath(endCell);
+                }
+
+                openList.Remove(currentNode);
+                closedList.Add(currentNode);
+
+                foreach (var neighborNode in currentNode.neighbourList)
+                {
+                    if (!neighborNode.isWalkable || closedList.Contains(neighborNode))
                     {
-                        openList.Add(nCell);
+                        continue;
+                    }
+
+                    float tentativeGCost = currentNode.gCost + CalculateDistance(currentNode, neighborNode);
+
+                    if (tentativeGCost < neighborNode.gCost)
+                    {
+                        neighborNode.cameFromNavCellNode = currentNode;
+                        neighborNode.gCost = tentativeGCost;
+                        neighborNode.hCost = CalculateDistance(neighborNode, endCell);
+                        neighborNode.CalculateFCost();
+
+                        if (!openList.Contains(neighborNode))
+                        {
+                            openList.Add(neighborNode);
+                        }
                     }
                 }
             }
+
+            Debug.LogWarning("No path found between start and end positions");
+            return null;
         }
-        private void initializeCostForFistCell(NavCellNode startCell, NavCellNode endCell)
+
+        private NavCellNode GetLowestFCostNode(List<NavCellNode> nodes)
         {
-            startCell.gCost = 0;
-            startCell.hCost = calculateDistance(startCell, endCell);
-            startCell.CalculateFCost();
-        }
-        private void clearPreviousPathsAndCosts()
-        {
-            foreach (var item in navCells)
+            NavCellNode lowestFCostNode = nodes[0];
+            foreach (var node in nodes)
             {
-                item.Value.gCost = 10_000_000;
-                item.Value.CalculateFCost();
-                item.Value.cameFromNavCellNode = null;
+                if (node.fCost < lowestFCostNode.fCost)
+                {
+                    lowestFCostNode = node;
+                }
+                else if (node.fCost == lowestFCostNode.fCost && node.hCost < lowestFCostNode.hCost)
+                {
+                    lowestFCostNode = node;
+                }
             }
+            return lowestFCostNode;
         }
-        private List<NavCellNode> calculatePath(NavCellNode endCell)
+
+        private List<NavCellNode> CalculatePath(NavCellNode endCell)
         {
-            List<NavCellNode>finalePath = new List<NavCellNode>();
-            finalePath.Add(endCell);
+            List<NavCellNode> path = new List<NavCellNode>();
+            path.Add(endCell);
+
             NavCellNode currentNode = endCell;
-            while (currentNode.cameFromNavCellNode != null) {
-                finalePath.Add(currentNode.cameFromNavCellNode);
+            while (currentNode.cameFromNavCellNode != null)
+            {
+                path.Add(currentNode.cameFromNavCellNode);
                 currentNode = currentNode.cameFromNavCellNode;
             }
-            finalePath.Reverse();
-            return finalePath;
-        }
-        private NavCellNode getLowestFcostNode(List<NavCellNode> nodes)
-        {
-            NavCellNode lowestFcostNode = nodes[0];
-            nodes.ForEach(n =>
-            {
-                lowestFcostNode = n.fCost < lowestFcostNode.fCost ? n : lowestFcostNode;
-            });
-            return lowestFcostNode;
-        }
-        private float calculateDistance(NavCellNode a, NavCellNode b)
-        {
-            float xDistance = Mathf.Abs(a.position.x - b.position.x);
-            float yDistance = Mathf.Abs(a.position.z - b.position.z);
-            float remaining = Mathf.Abs(xDistance - yDistance);
-            return MOVE_DIAGONAL_COST * Mathf.Min(xDistance, yDistance) + MOVE_STRAIGHT_COST * remaining;
-        }
-        private void createGrid()
-        {
-            for (int x = 0; x < width; x++)
-            {
-                for (int y = 0; y < height; y++)
-                {
-                    NavCellNode cellData = new NavCellNode(new Vector3(adjustOffsetAndScaleX(x), 0, adjustOffsetAndScaleZ(y))); // Create a new NavCellData instance
-                    navCells.Add(cellData.position, cellData); // Add to the dictionary
-                }
-            }
-            setNeighboringListForEveryCell();
-        }
-        private float adjustOffsetAndScaleX(int n)
-        {
-            return n * scaleOfNavigationGrid + this.gameObject.transform.position.x;
-        } 
-        private float adjustOffsetAndScaleZ(int n)
-        {
-            return n * scaleOfNavigationGrid + this.gameObject.transform.position.z;
+
+            path.Reverse();
+            return path;
         }
 
-        private void deleteGrid()
+        private float CalculateDistance(NavCellNode a, NavCellNode b)
         {
-            navCells.Clear();
+            int xDistance = Mathf.Abs(a.gridPosition.x - b.gridPosition.x);
+            int zDistance = Mathf.Abs(a.gridPosition.z - b.gridPosition.z);
+            int remaining = Mathf.Abs(xDistance - zDistance);
+
+            return MOVE_DIAGONAL_COST * Mathf.Min(xDistance, zDistance) + MOVE_STRAIGHT_COST * remaining;
         }
 
-        private void setNeighboringListForEveryCell()
+        // Visualization helpers for debugging
+        public void VisualizeGrid()
         {
-            //setNeighbourList
-            foreach (var cell in navCells)
-            {
-                List<NavCellNode> neighbourList = new List<NavCellNode>();
-                if (leftSideOutOfBounds(cell))
-                {
-                    //left
-                    neighbourList.Add(navCells[new Vector3(cell.Value.position.x - adjustOffsetAndScaleX(1), 0, cell.Value.position.z)]);
-                    //leftDown
-                    if (cell.Value.position.z - adjustOffsetAndScaleZ(1) >= 0 + gameObject.transform.position.z)
-                        neighbourList.Add(navCells[new Vector3(cell.Value.position.x - adjustOffsetAndScaleX(1), 0, cell.Value.position.z - adjustOffsetAndScaleZ(1))]);
-                    //leftUp
-                    if (cell.Value.position.z + adjustOffsetAndScaleZ(1) < adjustOffsetAndScaleZ(height))
-                        neighbourList.Add(navCells[new Vector3(cell.Value.position.x - adjustOffsetAndScaleX(1), 0, cell.Value.position.z + adjustOffsetAndScaleZ(1))]);
-
-                }
-                if (rightSideOutOfBounds(cell))
-                {
-                    //right
-                    neighbourList.Add(navCells[new Vector3(cell.Value.position.x + adjustOffsetAndScaleX(1), 0, cell.Value.position.z)]);
-
-                    //rightDown
-                    if (cell.Value.position.z - adjustOffsetAndScaleZ(1) >= 0 + gameObject.transform.position.z)
-                        neighbourList.Add(navCells[new Vector3(cell.Value.position.x + adjustOffsetAndScaleX(1), 0, cell.Value.position.z - adjustOffsetAndScaleZ(1))]);
-                    //rightUp
-                    if (cell.Value.position.z + adjustOffsetAndScaleZ(1) < adjustOffsetAndScaleZ(height))
-                        neighbourList.Add(navCells[new Vector3(cell.Value.position.x + adjustOffsetAndScaleX(1), 0, cell.Value.position.z + adjustOffsetAndScaleZ(1))]);
-                }
-                if (bottomSideOutOfBounds(cell))
-                {
-                    //down
-                    neighbourList.Add(navCells[new Vector3(cell.Value.position.x, 0, cell.Value.position.z - adjustOffsetAndScaleZ(1))]);
-                }
-                if (TopSideOutOfBounds(cell))
-                {
-                    //up
-                    neighbourList.Add(navCells[new Vector3(cell.Value.position.x, 0, cell.Value.position.z + adjustOffsetAndScaleZ(1))]);
-
-                }
-                cell.Value.neighbourList = neighbourList;
-            }
-        }
-
-        private bool TopSideOutOfBounds(KeyValuePair<Vector3, NavCellNode> cell)
-        {
-            return cell.Value.position.z + adjustOffsetAndScaleZ(1) < adjustOffsetAndScaleZ(height);
-        }
-
-        private bool bottomSideOutOfBounds(KeyValuePair<Vector3, NavCellNode> cell)
-        {
-            return cell.Value.position.z - adjustOffsetAndScaleZ(1) >= 0 + gameObject.transform.position.z;
-        }
-
-        private bool rightSideOutOfBounds(KeyValuePair<Vector3, NavCellNode> cell)
-        {
-            return cell.Value.position.x + adjustOffsetAndScaleX(1) < adjustOffsetAndScaleX(width);
-        }
-
-        private bool leftSideOutOfBounds(KeyValuePair<Vector3, NavCellNode> cell)
-        {
-            return cell.Value.position.x - adjustOffsetAndScaleX(1) >= 0 + gameObject.transform.position.x;
-        }
-
-        private static NavCellNode WorldToGridPosition(Vector3 worldPosition)
-        {
-            NavCellNode closestCell = null;
-            float shortestDistance = Mathf.Infinity;
-
             foreach (var cell in navCells.Values)
             {
-                float distance = Vector3.Distance(worldPosition, cell.position);
-                if (distance < shortestDistance)
-                {
-                    shortestDistance = distance;
-                    closestCell = cell;
-                }
-            }
+                GameObject visualizer = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                visualizer.name = $"GridVis_{cell.gridPosition}";
+                visualizer.transform.position = cell.worldPosition + Vector3.up * 0.05f;
+                visualizer.transform.localScale = new Vector3(
+                    navCellDistance * 0.9f,
+                    0.05f,
+                    navCellDistance * 0.9f
+                );
 
-            if (closestCell == null)
-            {
-                Debug.LogWarning("No navigation cells found.");
-            }
+                Renderer rend = visualizer.GetComponent<Renderer>();
+                rend.material.color = cell.isWalkable ?
+                    new Color(0, 1, 0, 0.3f) :
+                    new Color(1, 0, 0, 0.5f);
 
-            return closestCell;
+                // Make it semi-transparent
+                rend.material.color = new Color(
+                    rend.material.color.r,
+                    rend.material.color.g,
+                    rend.material.color.b,
+                    0.3f
+                );
+            }
         }
 
-        private void OnDrawGizmosSelected()
+        public void ClearGridVisualization()
         {
-            // If navCells is null or empty, do nothing.
-            if (navCells == null || navCells.Count == 0)
-                return;
+            GameObject[] visualizers = GameObject.FindGameObjectsWithTag("Untagged")
+                .Where(go => go.name.StartsWith("GridVis_")).ToArray();
 
-            // Get the current camera (Scene view camera)
-            Camera cam = Camera.current;
-            if (cam == null)
-                return;
-
-            // Define the distance threshold within which gizmos will be drawn.
-            // You can adjust this value in the inspector if you expose it as a public field.
-            const float gizmos_DRAW_THRESHOLD = 50f;
-            float thresholdSqr = gizmos_DRAW_THRESHOLD * gizmos_DRAW_THRESHOLD;
-
-            // Optionally, determine whether to draw labels based on a count threshold.
-            const int LABEL_DRAW_COUNT_THRESHOLD = 5000;
-            bool drawLabels = navCells.Count <= LABEL_DRAW_COUNT_THRESHOLD;
-
-            // Set a base color for the gizmos.
-            Gizmos.color = Color.green;
-
-            // Loop through each navigation cell
-            foreach (var cell in navCells.Values)
+            foreach (var visualizer in visualizers)
             {
-                // Calculate the squared distance from the cell to the camera.
-                float distanceSqr = (cell.position - cam.transform.position).sqrMagnitude;
-
-                // Skip this cell if it is beyond the threshold.
-                if (distanceSqr > thresholdSqr)
-                    continue;
-
-                // Draw a sphere for the navigation point.
-                Gizmos.DrawSphere(cell.position, 0.01f);
-
-                // Draw labels if allowed.
-                if (drawLabels)
-                {
-                    string labelText = string.Format("f:{0}\ng:{1}\nh:{2}", cell.fCost, cell.gCost, cell.hCost);
-                    if (cell.isWalkable)
-                    {
-                        labelText = string.Format("x{3},z{4}\n f:{0}\ng:{1}\nh:{2}WW", cell.fCost, cell.gCost, cell.hCost,cell.position.x,cell.position.z);
-
-                    }
-                    else
-                    {
-                        labelText = string.Format("x{3},z{4}\n f:{0}\ng:{1}\nh:{2}xx", cell.fCost, cell.gCost, cell.hCost, cell.position.x, cell.position.z);
-
-                    }
-
-                    Handles.Label(cell.position, labelText);
-                }
+                DestroyImmediate(visualizer);
             }
         }
 
-
-
- 
+        public bool CanBuildOnNavCell(Vector3 randomPos)
+        {
+            if (navCells.TryGetValue(WorldToGridPosition(randomPos), out NavCellNode navCellNode))
+                return navCellNode.isWalkable;
+            return false;
+        }
     }
 }

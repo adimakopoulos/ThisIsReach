@@ -11,8 +11,8 @@ public class CameraManager : MonoBehaviour
 
     [Header("Zoom Settings")]
     public float zoomSpeed = 5f;
-    public float minZoom = 5f;
-    public float maxZoom = 30f;
+    public float minZoom = 1f;
+    public float maxZoom = 50;
 
     [Header("Rotation Settings")]
     public float rotationSpeed = 50f;

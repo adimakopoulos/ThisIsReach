@@ -23,14 +23,15 @@ namespace SimpleMovementNS
 
             if (path != null)
             {
-                gameObject.transform.position = Vector3.MoveTowards(gameObject.transform.position, path[currentNode].position, 1f * Time.deltaTime);
-                if (gameObject.transform.position == path[path.Count - 1].position)
+                gameObject.transform.position = Vector3.MoveTowards(gameObject.transform.position, path[currentNode].worldPosition, 5f * Time.deltaTime);
+
+                if (gameObject.transform.position == path[path.Count - 1].worldPosition)
                 {
                     path = null;
                     currentNode = 0;
                     return;
                 }
-                if (gameObject.transform.position == path[currentNode].position)
+                if (gameObject.transform.position == path[currentNode].worldPosition)
                 {
                     currentNode++;
                 }
@@ -65,7 +66,12 @@ namespace SimpleMovementNS
         {
             currentNode = 0;
             path = GlobalPathingService.instance.FindPath(gameObject.transform.position, endPos);
-        }  
+        }
+        public void ResolvePathIgnoringNavCells(Vector3 endPos)
+        {
+            currentNode = 0;
+           // path = new List<SimpleMovementNSv2.GlobalPathingServiceV2.NavCellNode>() { new SimpleMovementNSv2.GlobalPathingServiceV2.NavCellNode(transform.position), new SimpleMovementNSv2.GlobalPathingServiceV2.NavCellNode(endPos) };
+        }
         public void followPath(List<NavCellNode> path)
         {
             this.path = path;

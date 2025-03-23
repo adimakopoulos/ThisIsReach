@@ -4,7 +4,9 @@
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
-        "CoreAssembly"
+        "CoreAssembly",
+        "com.alex.simple.world.generation.def",
+        "com.alex.simple.movement.def"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
