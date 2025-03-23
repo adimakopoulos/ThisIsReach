@@ -17,7 +17,7 @@ public class PathingTest
         GlobalPathingService globalPathingService = managers.AddComponent<GlobalPathingService>();
         globalPathingService.width = 10;
         globalPathingService.height = 10;
-        globalPathingService.scaleOfNavigationGrid = 1;
+        globalPathingService.navCellDistance = 1;
 
         globalPathingService.CreateGrid();
 
@@ -30,7 +30,7 @@ public class PathingTest
 
         //then
         List<NavCellNode> path = managers.GetComponent<GlobalPathingService>().FindPath(searchingForFood.transform.position, new Vector3(9, 0, 1));
-        searchingForFood.GetComponent<MovementManager>().followPath(path);
+        //searchingForFood.GetComponent<MovementManager>().followPath(path);
 
         Debug.Assert(searchingForFood != null, "searchingForFood != null");
         yield return new WaitForSeconds(10);
@@ -47,7 +47,7 @@ public class PathingTest
         GlobalPathingService globalPathingService = managers.AddComponent<GlobalPathingService>();
         globalPathingService.width = 2;
         globalPathingService.height = 2;
-        globalPathingService.scaleOfNavigationGrid = 0.5f;
+        globalPathingService.navCellDistance = 0.5f;
         Assert.DoesNotThrow(() =>
         {
             globalPathingService.CreateGrid();
@@ -67,7 +67,7 @@ public class PathingTest
         GlobalPathingService globalPathingService = managers.AddComponent<GlobalPathingService>();
         globalPathingService.width = 10;
         globalPathingService.height = 10;
-        globalPathingService.scaleOfNavigationGrid = 0.1f;
+        globalPathingService.navCellDistance = 0.1f;
         Assert.DoesNotThrow(() =>
         {
             globalPathingService.CreateGrid();

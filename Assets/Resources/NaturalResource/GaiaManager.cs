@@ -1,4 +1,5 @@
 using SimpleMovementNS;
+using SimpleWorldGenerationNS;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -23,7 +24,7 @@ namespace ThisIsReach
         {
             for (int i = 0; i < MaxStones; i++)
             {
-                Vector3 randomPos = new Vector3(Random.Range(0, 20), 0, Random.Range(0, 20));
+                Vector3 randomPos = new Vector3(Random.Range(0, WorldGenerationsManager.instance.X), 0, Random.Range(0, WorldGenerationsManager.instance.Y));
                 if (GlobalPathingService.instance.CanBuildOnTile(randomPos))
                 {
 
@@ -36,9 +37,8 @@ namespace ThisIsReach
                 Vector3 randomPos = new Vector3(Random.Range(0f, 20f), 0f, Random.Range(0f, 20f));
                 if (GlobalPathingService.instance.CanBuildOnNavCell(randomPos))
                 {
-                    GlobalPathingService.GetClosestNavCellPos(randomPos);
-                    GlobalPathingService.instance.BlockNavCell(randomPos);
-                    Instantiate(ResourcesPrefabs[1], randomPos, Quaternion.identity);
+                    Vector3 worldPosition = GlobalPathingService.instance.BlockNavCell(randomPos);
+                    Instantiate(ResourcesPrefabs[1], worldPosition, Quaternion.identity);
                 }
 
             }
